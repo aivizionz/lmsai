@@ -4,6 +4,7 @@ export interface Lesson {
   duration: string;
   type: "Video" | "Text" | "Quiz" | "Assignment";
   objectives: string[];
+  completed?: boolean; // For student progress
 }
 
 export interface Module {
@@ -13,12 +14,16 @@ export interface Module {
 }
 
 export interface Curriculum {
+  id?: string; // Add ID for catalog reference
   title: string;
   description: string;
   targetAudience: string;
   difficultyLevel: "Beginner" | "Intermediate" | "Advanced";
   estimatedTotalDuration: string;
   modules: Module[];
+  status?: 'Draft' | 'Published';
+  authorName?: string; // To show students who created it
+  publishedAt?: string;
 }
 
 export interface AssessmentQuestion {
@@ -79,9 +84,11 @@ export interface UserSettings {
   layoutSpacing: 'compact' | 'comfortable';
 }
 
+export type UserRole = 'coach' | 'student';
+
 export interface User {
   id: string;
   name: string;
   email: string;
-  // Password is not stored in the state object for security best practices, even in mocks
+  role: UserRole;
 }

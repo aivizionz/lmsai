@@ -14,8 +14,8 @@ export abstract class BaseMetric {
   protected ai: GoogleGenAI;
 
   constructor() {
-    // Uses the same API key as the main app
-    this.ai = new GoogleGenAI({ apiKey: process.env.API_KEY || 'test-key' });
+    // Uses the configured GOOGLE_API_KEY, falls back to API_KEY (system default), or a test mock key
+    this.ai = new GoogleGenAI({ apiKey: process.env.GOOGLE_API_KEY || process.env.API_KEY || 'test-key' });
   }
 
   abstract evaluate(input: string, output: string): Promise<EvaluationResult>;
@@ -70,7 +70,7 @@ export class RelevancyMetric extends BaseMetric {
 
     try {
       const response = await this.ai.models.generateContent({
-        model: 'gemini-2.5-flash',
+        model: process.env.LLM_MODEL || 'gemini-3-pro-preview',
         contents: prompt,
         config: {
           responseMimeType: "application/json",

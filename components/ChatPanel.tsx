@@ -33,8 +33,19 @@ export const ChatPanel = () => {
     addToast("Message copied to clipboard", "info");
   };
 
+  const STARTER_PROMPTS = [
+    "Create a 4-week Python course for beginners",
+    "Design a 2-day workshop on Public Speaking",
+    "Build a syllabus for Advanced Machine Learning",
+    "Create a training module for Customer Service"
+  ];
+
+  const handleStarterClick = (prompt: string) => {
+      sendMessage(prompt);
+  };
+
   return (
-    <div className={`w-[400px] flex flex-col border-r border-slate-800 bg-slate-900/50 shrink-0 ${settings.sidebarCollapsed ? 'w-[450px]' : ''} transition-all duration-300`}>
+    <div className={`w-[400px] flex flex-col border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/50 shrink-0 ${settings.sidebarCollapsed ? 'w-[450px]' : ''} transition-all duration-300`}>
       <div className={`flex-1 overflow-y-auto custom-scrollbar ${spacingClass}`}>
         {currentMessages.map((msg) => (
           <div 
@@ -45,7 +56,7 @@ export const ChatPanel = () => {
               
               {/* Avatar */}
               <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 ${
-                 msg.role === 'user' ? 'bg-primary-500/20 text-primary-400' : 'bg-slate-700/50 text-slate-400'
+                 msg.role === 'user' ? 'bg-primary-100 dark:bg-primary-500/20 text-primary-600 dark:text-primary-400' : 'bg-slate-200 dark:bg-slate-700/50 text-slate-500 dark:text-slate-400'
               }`}>
                 <i className={`text-[10px] ${msg.role === 'user' ? 'fa-solid fa-user' : 'fa-solid fa-robot'}`}></i>
               </div>
@@ -55,7 +66,7 @@ export const ChatPanel = () => {
                 className={`relative rounded-2xl text-sm leading-relaxed shadow-sm ${bubblePadding} ${
                   msg.role === 'user' 
                     ? 'bg-primary-600 text-white rounded-br-none' 
-                    : 'bg-slate-800 border border-slate-700 text-slate-200 rounded-bl-none'
+                    : 'bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 rounded-bl-none'
                 }`}
               >
                 {/* Markdown Content */}
@@ -67,7 +78,7 @@ export const ChatPanel = () => {
                 <div className={`absolute -bottom-7 ${msg.role === 'user' ? 'right-0' : 'left-0'} flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity`}>
                    <button
                     onClick={() => copyToClipboard(msg.text)}
-                    className="text-xs text-slate-500 hover:text-white flex items-center gap-1 py-1 px-1 rounded hover:bg-slate-800"
+                    className="text-xs text-slate-400 hover:text-slate-900 dark:text-slate-500 dark:hover:text-white flex items-center gap-1 py-1 px-1 rounded hover:bg-slate-200 dark:hover:bg-slate-800"
                     title="Copy Text"
                   >
                     <i className="fa-regular fa-copy"></i>
@@ -77,14 +88,14 @@ export const ChatPanel = () => {
                     <>
                       <button
                         onClick={() => submitFeedback(msg.id, 'up')}
-                        className={`text-xs flex items-center gap-1 py-1 px-1 rounded hover:bg-slate-800 ${msg.feedback === 'up' ? 'text-emerald-400' : 'text-slate-500 hover:text-emerald-400'}`}
+                        className={`text-xs flex items-center gap-1 py-1 px-1 rounded hover:bg-slate-200 dark:hover:bg-slate-800 ${msg.feedback === 'up' ? 'text-emerald-500 dark:text-emerald-400' : 'text-slate-400 dark:text-slate-500 hover:text-emerald-500 dark:hover:text-emerald-400'}`}
                         title="Helpful"
                       >
                         <i className={`${msg.feedback === 'up' ? 'fa-solid' : 'fa-regular'} fa-thumbs-up`}></i>
                       </button>
                       <button
                         onClick={() => submitFeedback(msg.id, 'down')}
-                        className={`text-xs flex items-center gap-1 py-1 px-1 rounded hover:bg-slate-800 ${msg.feedback === 'down' ? 'text-red-400' : 'text-slate-500 hover:text-red-400'}`}
+                        className={`text-xs flex items-center gap-1 py-1 px-1 rounded hover:bg-slate-200 dark:hover:bg-slate-800 ${msg.feedback === 'down' ? 'text-red-500 dark:text-red-400' : 'text-slate-400 dark:text-slate-500 hover:text-red-500 dark:hover:text-red-400'}`}
                         title="Not Helpful"
                       >
                         <i className={`${msg.feedback === 'down' ? 'fa-solid' : 'fa-regular'} fa-thumbs-down`}></i>
@@ -95,11 +106,27 @@ export const ChatPanel = () => {
               </div>
             </div>
 
-            <span className={`text-[10px] text-slate-600 mt-1 px-10 ${msg.role === 'user' ? 'text-right' : 'text-left'}`}>
+            <span className={`text-[10px] text-slate-400 dark:text-slate-600 mt-1 px-10 ${msg.role === 'user' ? 'text-right' : 'text-left'}`}>
               {msg.timestamp.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
             </span>
           </div>
         ))}
+
+        {/* Empty State / Starter Prompts */}
+        {currentMessages.length === 1 && mode === 'curriculum' && (
+            <div className="flex flex-col gap-2 px-10 mt-4">
+                <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Suggestions</p>
+                {STARTER_PROMPTS.map((prompt, i) => (
+                    <button 
+                        key={i}
+                        onClick={() => handleStarterClick(prompt)}
+                        className="text-left text-sm p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-primary-50 dark:hover:bg-slate-800 hover:border-primary-200 dark:hover:border-slate-600 hover:text-primary-700 dark:hover:text-primary-400 transition-all shadow-sm"
+                    >
+                        {prompt}
+                    </button>
+                ))}
+            </div>
+        )}
         
         {isTyping && mode !== 'coach' && (
           <div className="flex items-center gap-2 text-slate-500 text-xs pl-10" data-testid="typing-indicator">
@@ -108,13 +135,13 @@ export const ChatPanel = () => {
               <div className="w-1.5 h-1.5 bg-primary-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
               <div className="w-1.5 h-1.5 bg-primary-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
             </div>
-            <span className="font-medium text-primary-400">Architecting...</span>
+            <span className="font-medium text-primary-600 dark:text-primary-400">Architecting...</span>
           </div>
         )}
         <div ref={messagesEndRef} />
       </div>
 
-      <div className={`bg-slate-900 border-t border-slate-800 ${settings.layoutSpacing === 'compact' ? 'p-3' : 'p-4'}`}>
+      <div className={`bg-slate-50 dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 ${settings.layoutSpacing === 'compact' ? 'p-3' : 'p-4'}`}>
         <div className="relative group">
           <textarea
             value={inputText}
@@ -132,13 +159,13 @@ export const ChatPanel = () => {
               "Ask for an explanation or teaching strategy..."
             }
             disabled={isTyping}
-            className="w-full bg-slate-950 border border-slate-700 rounded-xl py-3 pl-4 pr-12 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:border-primary-500 resize-none h-24 disabled:opacity-50 disabled:cursor-wait transition-all shadow-inner"
+            className="w-full bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl py-3 pl-4 pr-12 text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:border-primary-500 resize-none h-24 disabled:opacity-50 disabled:cursor-wait transition-all shadow-inner"
             data-testid="chat-input"
           />
           {isTyping ? (
             <button
               onClick={handleStop}
-              className="absolute right-3 bottom-3 p-2 bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white border border-red-500/50 hover:border-red-500 rounded-lg transition-all"
+              className="absolute right-3 bottom-3 p-2 bg-red-100 dark:bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white border border-red-200 dark:border-red-500/50 hover:border-red-500 rounded-lg transition-all"
               title="Stop Generation"
             >
               <i className="fa-solid fa-stop text-xs"></i>
@@ -154,8 +181,8 @@ export const ChatPanel = () => {
             </button>
           )}
         </div>
-        <div className="text-[10px] text-slate-500 text-center mt-2">
-          Press <kbd className="font-sans px-1 py-0.5 rounded bg-slate-800 border border-slate-700 text-slate-400">Enter</kbd> to send, <kbd className="font-sans px-1 py-0.5 rounded bg-slate-800 border border-slate-700 text-slate-400">Shift+Enter</kbd> for new line
+        <div className="text-[10px] text-slate-400 dark:text-slate-500 text-center mt-2">
+          Press <kbd className="font-sans px-1 py-0.5 rounded bg-slate-200 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-500 dark:text-slate-400">Enter</kbd> to send, <kbd className="font-sans px-1 py-0.5 rounded bg-slate-200 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-500 dark:text-slate-400">Shift+Enter</kbd> for new line
         </div>
       </div>
     </div>

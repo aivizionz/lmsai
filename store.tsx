@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useRef, ReactNode } from 'react';
 import { GoogleGenAI, GenerateContentResponse } from "@google/genai";
-import { Mode, Message, Curriculum, Assessment, Session, UserSettings, User } from "./types";
+import { Mode, Message, Curriculum, Assessment, Session, UserSettings, User, UserRole } from "./types";
 import { 
   CURRICULUM_PROMPT, CURRICULUM_SCHEMA, 
   ASSESSMENT_PROMPT, ASSESSMENT_SCHEMA, 
@@ -19,10 +19,10 @@ interface AppState {
   // Auth
   currentUser: User | null;
   login: (email: string, pass: string) => Promise<boolean>;
-  register: (name: string, email: string, pass: string) => Promise<boolean>;
+  register: (name: string, email: string, pass: string, role: UserRole) => Promise<boolean>;
   logout: () => void;
 
-  // Session Management
+  // Session Management (Coach Only)
   sessions: Record<string, Session>;
   currentSessionId: string;
   createSession: () => void;
@@ -31,6 +31,11 @@ interface AppState {
   updateSessionTitle: (id: string, title: string) => void;
   isHistoryOpen: boolean;
   setHistoryOpen: (open: boolean) => void;
+
+  // Student Data
+  publishedCourses: Curriculum[];
+  viewingCourse: Curriculum | null;
+  openCourse: (course: Curriculum | null) => void;
 
   // Settings
   settings: UserSettings;
@@ -42,6 +47,8 @@ interface AppState {
   mode: Mode;
   setMode: (m: Mode) => void;
   curriculum: Curriculum | null;
+  updateCurriculum: (curriculum: Curriculum) => void; 
+  togglePublishStatus: () => void; 
   assessments: Assessment[];
   messages: Record<Mode, Message[]>;
   submitFeedback: (messageId: string, rating: "up" | "down") => void;
@@ -49,7 +56,7 @@ interface AppState {
   // UI State
   isTyping: boolean;
   sendMessage: (text: string) => Promise<void>;
-  resetState: () => void; // Clears ALL data
+  resetState: () => void; 
   toasts: Toast[];
   addToast: (message: string, type: ToastType) => void;
   removeToast: (id: string) => void;
@@ -126,6 +133,10 @@ const STORAGE_KEY = 'curriculum_architect_v2';
 const SETTINGS_KEY = 'curriculum_architect_settings';
 const AUTH_KEY = 'curriculum_architect_users';
 const CURRENT_USER_KEY = 'curriculum_architect_current_user';
+const PUBLISHED_CATALOG_KEY = 'curriculum_architect_catalog';
+
+// Configuration from Env
+const MODEL_NAME = process.env.LLM_MODEL || 'gemini-3-pro-preview';
 
 const createNewSessionData = (id: string): Session => ({
   id,
@@ -144,6 +155,10 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const [currentSessionId, setCurrentSessionId] = useState<string>("");
   const [settings, setSettings] = useState<UserSettings>(DEFAULT_SETTINGS);
   
+  // Student State
+  const [publishedCourses, setPublishedCourses] = useState<Curriculum[]>([]);
+  const [viewingCourse, setViewingCourse] = useState<Curriculum | null>(null);
+
   // Active Session State
   const [mode, setMode] = useState<Mode>('curriculum');
   const [curriculum, setCurriculum] = useState<Curriculum | null>(null);
@@ -195,6 +210,12 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         setCurriculum(current.curriculum);
         setAssessments(current.assessments);
         setMessages(current.messages);
+      }
+
+      // Load Published Catalog
+      const savedCatalog = localStorage.getItem(PUBLISHED_CATALOG_KEY);
+      if (savedCatalog) {
+        setPublishedCourses(JSON.parse(savedCatalog));
       }
 
       // Load Settings
@@ -269,10 +290,11 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         setTimeout(() => {
             const usersStr = localStorage.getItem(AUTH_KEY);
             const users = usersStr ? JSON.parse(usersStr) : [];
-            const user = users.find((u: any) => u.email === email && u.password === pass); // NOTE: In production, assume backend validation
+            const user = users.find((u: any) => u.email === email && u.password === pass); 
             
             if (user) {
-                const safeUser = { id: user.id, name: user.name, email: user.email };
+                // Ensure role exists for legacy users
+                const safeUser = { id: user.id, name: user.name, email: user.email, role: user.role || 'coach' };
                 setCurrentUser(safeUser);
                 localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(safeUser));
                 addToast(`Welcome back, ${safeUser.name}`, 'success');
@@ -281,11 +303,11 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
                 addToast("Invalid email or password", 'error');
                 resolve(false);
             }
-        }, 800); // Simulate network delay
+        }, 800); 
     });
   };
 
-  const register = async (name: string, email: string, pass: string): Promise<boolean> => {
+  const register = async (name: string, email: string, pass: string, role: UserRole): Promise<boolean> => {
     return new Promise((resolve) => {
         setTimeout(() => {
             const usersStr = localStorage.getItem(AUTH_KEY);
@@ -297,11 +319,11 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
                 return;
             }
 
-            const newUser = { id: Date.now().toString(), name, email, password: pass }; // NOTE: Insecure password storage for demo only
+            const newUser = { id: Date.now().toString(), name, email, password: pass, role }; 
             users.push(newUser);
             localStorage.setItem(AUTH_KEY, JSON.stringify(users));
             
-            const safeUser = { id: newUser.id, name: newUser.name, email: newUser.email };
+            const safeUser = { id: newUser.id, name: newUser.name, email: newUser.email, role: newUser.role };
             setCurrentUser(safeUser);
             localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(safeUser));
             
@@ -313,6 +335,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
   const logout = () => {
     setCurrentUser(null);
+    setViewingCourse(null);
     localStorage.removeItem(CURRENT_USER_KEY);
     addToast("Logged out successfully", 'info');
   };
@@ -394,6 +417,57 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       [id]: { ...prev[id], title }
     }));
   };
+  
+  const updateCurriculum = (newCurriculum: Curriculum) => {
+    setCurriculum(newCurriculum);
+    if (currentSessionId) {
+        updateSessionTitle(currentSessionId, newCurriculum.title);
+    }
+    addToast("Curriculum updated manually", "success");
+  };
+
+  const togglePublishStatus = () => {
+    if (!curriculum) return;
+    
+    const newStatus: 'Draft' | 'Published' = curriculum.status === 'Published' ? 'Draft' : 'Published';
+    
+    // 1. Update Current Session
+    const updatedCurriculum: Curriculum = { 
+        ...curriculum, 
+        status: newStatus,
+        publishedAt: newStatus === 'Published' ? new Date().toISOString() : undefined,
+        authorName: currentUser?.name || 'Unknown Coach',
+        id: currentSessionId // Ensure ID consistency
+    };
+    setCurriculum(updatedCurriculum);
+
+    // 2. Sync to Global Catalog (LocalStorage Mock for Students)
+    let catalog = [...publishedCourses];
+    if (newStatus === 'Published') {
+        // Add or Update in catalog
+        const existingIndex = catalog.findIndex(c => c.id === currentSessionId);
+        if (existingIndex >= 0) {
+            catalog[existingIndex] = updatedCurriculum;
+        } else {
+            catalog.push(updatedCurriculum);
+        }
+    } else {
+        // Remove from catalog
+        catalog = catalog.filter(c => c.id !== currentSessionId);
+    }
+    
+    setPublishedCourses(catalog);
+    localStorage.setItem(PUBLISHED_CATALOG_KEY, JSON.stringify(catalog));
+    
+    addToast(
+      newStatus === 'Published' ? "Course Published to Catalog!" : "Course Unpulished", 
+      newStatus === 'Published' ? 'success' : 'info'
+    );
+  };
+
+  const openCourse = (course: Curriculum | null) => {
+    setViewingCourse(course);
+  };
 
   const updateSettings = (newSettings: Partial<UserSettings>) => {
     setSettings(prev => {
@@ -430,6 +504,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     localStorage.removeItem(STORAGE_KEY);
     localStorage.removeItem(CURRENT_USER_KEY);
     localStorage.removeItem(SETTINGS_KEY);
+    localStorage.removeItem(PUBLISHED_CATALOG_KEY);
     window.location.reload();
   };
 
@@ -465,7 +540,12 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     setIsTyping(true);
 
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const apiKey = process.env.GOOGLE_API_KEY || process.env.API_KEY;
+      if (!apiKey) {
+         throw new Error("API Key not found. Please check GOOGLE_API_KEY or API_KEY in environment.");
+      }
+      
+      const ai = new GoogleGenAI({ apiKey });
 
       if (mode === 'coach') {
         const responseId = (Date.now() + 1).toString();
@@ -474,7 +554,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         const prompt = `Current Curriculum Context: ${JSON.stringify(curriculum)}\nUser Question: "${inputText}"\nProvide a helpful response in markdown.`;
 
         const streamResult = await ai.models.generateContentStream({
-          model: 'gemini-2.5-flash',
+          model: MODEL_NAME,
           contents: prompt,
           config: { systemInstruction: COACH_PROMPT, temperature: 0.5 }
         });
@@ -498,7 +578,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
           : `${inputText}\n\nCreate a new curriculum. Return FULL JSON.`;
 
         const response = await ai.models.generateContent({
-          model: 'gemini-2.5-flash',
+          model: MODEL_NAME,
           contents: prompt,
           config: {
             systemInstruction: CURRICULUM_PROMPT,
@@ -512,6 +592,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
         if (response.text) {
           const data = JSON.parse(response.text) as Curriculum;
+          data.status = 'Draft'; 
           setCurriculum(data);
           addMessage('curriculum', {
             id: (Date.now() + 1).toString(),
@@ -537,7 +618,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         const prompt = `Current Curriculum: ${JSON.stringify(curriculum)}\nUser Request: "${inputText}"\nGenerate assessment JSON.`;
         
         const response = await ai.models.generateContent({
-          model: 'gemini-2.5-flash',
+          model: MODEL_NAME,
           contents: prompt,
           config: {
             systemInstruction: ASSESSMENT_PROMPT,
@@ -575,7 +656,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
          const prompt = `Current Curriculum: ${JSON.stringify(curriculum)}\nRequest: "${inputText}"\nAdapt and return FULL JSON.`;
 
          const response = await ai.models.generateContent({
-          model: 'gemini-2.5-flash',
+          model: MODEL_NAME,
           contents: prompt,
           config: {
             systemInstruction: ADAPTIVE_PROMPT,
@@ -589,7 +670,8 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         
         if (response.text) {
            const data = JSON.parse(response.text) as Curriculum;
-           setCurriculum(data);
+           const updatedData: Curriculum = { ...data, status: 'Draft' };
+           setCurriculum(updatedData);
            addMessage('adaptive', {
             id: (Date.now() + 1).toString(),
             role: 'model',
@@ -622,10 +704,11 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       sessions, currentSessionId, createSession, switchSession, deleteSession, updateSessionTitle,
       isHistoryOpen, setHistoryOpen,
       settings, updateSettings, isSettingsOpen, setSettingsOpen,
-      mode, setMode, curriculum, assessments, messages, isTyping, 
+      mode, setMode, curriculum, updateCurriculum, togglePublishStatus, assessments, messages, isTyping, 
       sendMessage, resetState, 
       toasts, addToast, removeToast, cancelGeneration, submitFeedback,
-      currentUser, login, register, logout
+      currentUser, login, register, logout,
+      publishedCourses, viewingCourse, openCourse
     }}>
       {children}
     </AppContext.Provider>

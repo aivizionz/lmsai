@@ -111,7 +111,7 @@ describe('Enterprise LLM Evaluation (Agentic QA)', () => {
     // Simulate App Logic (simplified for test)
     const ai = new GoogleGenAIModule.GoogleGenAI({ apiKey: 'test' });
     const genResponse = await ai.models.generateContent({ 
-        model: 'gemini-2.5-flash', 
+        model: process.env.LLM_MODEL || 'gemini-3-pro-preview', 
         contents: userPrompt 
     });
     const generatedContent = genResponse.text;

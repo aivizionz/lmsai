@@ -1,5 +1,6 @@
 import React from 'react';
 import { useAppStore } from '../store';
+import { Session } from '../types';
 
 export const SessionHistory = () => {
   const { 
@@ -10,7 +11,7 @@ export const SessionHistory = () => {
   if (!isHistoryOpen) return null;
 
   // Sort sessions by lastModified descending
-  const sortedSessions = Object.values(sessions).sort((a, b) => 
+  const sortedSessions = (Object.values(sessions) as Session[]).sort((a, b) => 
     b.lastModified.getTime() - a.lastModified.getTime()
   );
 
